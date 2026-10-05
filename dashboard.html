@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simple IoT World - Web Dashboard</title>
+  <meta name="description" content="Simple IoT World - ESP8266 Real-Time IoT Dashboard with DHT11, LCD 16x2 and LED Controls">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            rose: {
+              500: '#f43f5e',
+              600: '#e11d48',
+              700: '#be123c',
+              800: '#9f1239',
+              900: '#881337',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <!-- Chart.js for real-time visualization -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body class="flex flex-col min-h-screen">
+
+  <!-- Top Navigation Header -->
+  <header class="w-full border-b border-rose-500/20 bg-white/80 dark:bg-zinc-900/85 backdrop-blur-md sticky top-0 z-50 transition-colors">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 py-3 flex flex-wrap items-center justify-between gap-4">
+      
+      <!-- Brand & Name -->
+      <div class="flex items-center gap-3">
+        <div class="w-11 h-11 rounded-2xl bg-gradient-to-tr from-rose-600 to-rose-400 flex items-center justify-center text-white shadow-lg shadow-rose-600/30">
+          <i class="fa-solid fa-microchip text-2xl"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-xl sm:text-2xl font-black bg-gradient-to-r from-rose-600 to-rose-400 bg-clip-text text-transparent">
+              Simple IoT World
+            </h1>
+            <span class="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+              ESP8266
+            </span>
+          </div>
+          <p id="user-greeting" class="text-xs font-semibold text-zinc-600 dark:text-zinc-300">
+            Welcome User
+          </p>
+        </div>
+      </div>
+
+      <!-- Device Status & Actions Header Section -->
+      <div class="flex items-center gap-3 sm:gap-4">
+        <!-- ESP8266 Live Online/Offline Status Indicator -->
+        <div id="device-status-badge" class="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-zinc-100 dark:bg-zinc-800 text-zinc-500 border border-zinc-200 dark:border-zinc-700 shadow-sm transition-all" title="ESP8266 Connectivity Status">
+          <span id="status-dot" class="w-2.5 h-2.5 rounded-full bg-zinc-400"></span>
+          <span id="status-text">ESP8266: Checking...</span>
+        </div>
+
+        <!-- Light/Dark Mode Switcher -->
+        <button id="theme-toggle-btn" class="p-2.5 rounded-xl border border-rose-500/20 bg-rose-50/50 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:text-rose-600 dark:hover:text-rose-400 transition-all shadow-sm" title="Toggle Theme">
+          <i class="fa-regular fa-sun text-lg theme-icon-sun hidden"></i>
+          <i class="fa-regular fa-moon text-lg theme-icon-moon"></i>
+        </button>
+
+        <!-- Logout Button -->
+        <button id="btn-logout" class="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-zinc-800 border border-rose-500/20 transition-all" title="Sign Out">
+          <i class="fa-solid fa-arrow-right-from-bracket"></i>
+          <span class="hidden sm:inline">Logout</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="flex-grow max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- Global Toast Alert -->
+    <div id="toast" class="fixed top-20 right-4 sm:right-8 z-50 hidden transition-all duration-300 transform translate-y-0">
+      <div class="px-5 py-3 rounded-xl shadow-xl flex items-center gap-3 font-semibold text-sm backdrop-blur-md border" id="toast-body">
+        <i id="toast-icon" class="fa-solid fa-circle-check"></i>
+        <span id="toast-message">Message here</span>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs (Tab 1, Tab 2, Tab 3) -->
+    <div class="glass-panel p-2 flex flex-wrap gap-2 justify-center sm:justify-start">
+      <button id="tab-btn-1" class="tab-btn active flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm transition-all btn-red-gradient" data-tab="tab-content-1">
+        <i class="fa-solid fa-chart-line"></i>
+        <span>Sensors & Analytics</span>
+      </button>
+
+      <button id="tab-btn-2" class="tab-btn flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm transition-all text-zinc-600 dark:text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50/50 dark:hover:bg-zinc-800" data-tab="tab-content-2">
+        <i class="fa-solid fa-tv"></i>
+        <span>LCD 16x2 Display</span>
+      </button>
+
+      <button id="tab-btn-3" class="tab-btn flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm transition-all text-zinc-600 dark:text-zinc-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50/50 dark:hover:bg-zinc-800" data-tab="tab-content-3">
+        <i class="fa-solid fa-lightbulb"></i>
+        <span>Remote LED Switch</span>
+      </button>
+
+      <!-- Quick Simulation Button to verify without physical hardware -->
+      <button id="btn-simulate" class="ml-auto flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-xs border border-rose-500/30 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-zinc-800/80 transition-all self-center" title="Inject simulated sensor reading for testing">
+        <i class="fa-solid fa-flask"></i>
+        <span class="hidden md:inline">Simulate ESP Reading</span>
+      </button>
+    </div>
+
+    <!-- ========================================================
+         TAB 1: SENSORS & ANALYTICS
+         ======================================================== -->
+    <div id="tab-content-1" class="tab-page space-y-6">
+
+      <!-- SECTION 1: Current Gauges & Live Charts -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+        <!-- TEMPERATURE CARD WITH LARGE FONT GAUGE -->
+        <div class="glass-panel p-6 sm:p-8 relative overflow-hidden flex flex-col justify-between">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-rose-600 to-amber-500 flex items-center justify-center text-white shadow-lg shadow-rose-500/30">
+                <i class="fa-solid fa-temperature-three-quarters text-2xl"></i>
+              </div>
+              <div>
+                <h3 class="text-lg font-bold">Temperature</h3>
+                <p class="text-xs text-zinc-500 dark:text-zinc-400">Sensor: DHT11 (Pin D5)</p>
+              </div>
+            </div>
+            <span id="temp-badge" class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+              Live
+            </span>
+          </div>
+
+          <!-- Gauge and Value Display -->
+          <div class="flex flex-col sm:flex-row items-center justify-around gap-6 my-4">
+            <!-- Circular Radial Gauge -->
+            <div class="relative w-44 h-44 flex items-center justify-center">
+              <svg class="w-full h-full gauge-svg" viewBox="0 0 100 100">
+                <!-- Background track -->
+                <circle class="gauge-background" cx="50" cy="50" r="40" stroke-width="8" fill="transparent" />
+                <!-- Gradient definition -->
+                <defs>
+                  <linearGradient id="tempGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#f59e0b" />
+                    <stop offset="50%" stop-color="#f43f5e" />
+                    <stop offset="100%" stop-color="#be123c" />
+                  </linearGradient>
+                </defs>
+                <!-- Animated fill -->
+                <circle id="temp-gauge-circle" class="gauge-progress" cx="50" cy="50" r="40" stroke-width="8" stroke="url(#tempGradient)" stroke-dasharray="251.2" stroke-dashoffset="251.2" stroke-linecap="round" fill="transparent" />
+              </svg>
+              <!-- Center Metric Text -->
+              <div class="absolute inset-0 flex flex-col items-center justify-center text-center">
+                <span id="temp-large-val" class="text-4xl font-extrabold tracking-tight text-zinc-900 dark:text-white">--</span>
+                <span class="text-sm font-semibold text-rose-600 dark:text-rose-400">°C</span>
+              </div>
+            </div>
+
+            <!-- Stats & Seek Bar -->
+            <div class="w-full sm:w-1/2 space-y-3">
+              <div class="flex justify-between text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                <span>0 °C</span>
+                <span id="temp-level-text" class="text-rose-600 dark:text-rose-400 font-bold">Normal</span>
+                <span>50 °C</span>
+              </div>
+              <div class="seek-bar-track">
+                <div id="temp-seek-bar" class="seek-bar-fill bg-gradient-to-r from-amber-400 via-rose-500 to-rose-700" style="width: 0%;"></div>
+              </div>
+              <p class="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                Calibrated range for NodeMCU DHT11 module. Updated continuously from ESP8266.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- HUMIDITY CARD WITH LARGE FONT GAUGE -->
+        <div class="glass-panel p-6 sm:p-8 relative overflow-hidden flex flex-col justify-between">
+          <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center text-white shadow-lg shadow-cyan-500/30">
+                <i class="fa-solid fa-droplet text-2xl"></i>
+              </div>
+              <div>
+                <h3 class="text-lg font-bold">Humidity</h3>
+                <p class="text-xs text-zinc-500 dark:text-zinc-400">Sensor: DHT11 (Pin D5)</p>
+              </div>
+            </div>
+            <span id="hum-badge" class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-500/20">
+              Live
+            </span>
+          </div>
+
+          <!-- Gauge and Value Display -->
+          <div class="flex flex-col sm:flex-row items-center justify-around gap-6 my-4">
+            <!-- Circular Radial Gauge -->
+            <div class="relative w-44 h-44 flex items-center justify-center">
+              <svg class="w-full h-full gauge-svg" viewBox="0 0 100 100">
+                <circle class="gauge-background" cx="50" cy="50" r="40" stroke-width="8" fill="transparent" />
+                <defs>
+                  <linearGradient id="humGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="#06b6d4" />
+                    <stop offset="60%" stop-color="#3b82f6" />
+                    <stop offset="100%" stop-color="#6366f1" />
+                  </linearGradient>
+                </defs>
+                <circle id="hum-gauge-circle" class="gauge-progress" cx="50" cy="50" r="40" stroke-width="8" stroke="url(#humGradient)" stroke-dasharray="251.2" stroke-dashoffset="251.2" stroke-linecap="round" fill="transparent" />
+              </svg>
+              <div class="absolute inset-0 flex flex-col items-center justify-center text-center">
+                <span id="hum-large-val" class="text-4xl font-extrabold tracking-tight text-zinc-900 dark:text-white">--</span>
+                <span class="text-sm font-semibold text-cyan-600 dark:text-cyan-400">% RH</span>
+              </div>
+            </div>
+
+            <!-- Stats & Seek Bar -->
+            <div class="w-full sm:w-1/2 space-y-3">
+              <div class="flex justify-between text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                <span>0 %</span>
+                <span id="hum-level-text" class="text-cyan-600 dark:text-cyan-400 font-bold">Optimal</span>
+                <span>100 %</span>
+              </div>
+              <div class="seek-bar-track">
+                <div id="hum-seek-bar" class="seek-bar-fill bg-gradient-to-r from-teal-400 via-cyan-500 to-blue-600" style="width: 0%;"></div>
+              </div>
+              <p class="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                Relative moisture content in ambient air measured with capacitive humidity sensor.
+              </p>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- REAL-TIME GRAPHS SECTION -->
+      <div class="glass-panel p-6 sm:p-8">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-4 border-b border-zinc-200 dark:border-zinc-800 gap-3">
+          <div>
+            <h3 class="text-lg font-bold flex items-center gap-2">
+              <i class="fa-solid fa-chart-area text-rose-500"></i>
+              Real-time Trend Analysis
+            </h3>
+            <p class="text-xs text-zinc-500 dark:text-zinc-400">Dynamic graph tracking latest readings in Asia/Kolkata timezone</p>
+          </div>
+          <div class="flex items-center gap-4 text-xs font-semibold">
+            <span class="flex items-center gap-1.5 text-rose-600 dark:text-rose-400">
+              <span class="w-3 h-3 rounded-full bg-rose-500 inline-block"></span> Temperature (°C)
+            </span>
+            <span class="flex items-center gap-1.5 text-cyan-600 dark:text-cyan-400">
+              <span class="w-3 h-3 rounded-full bg-cyan-500 inline-block"></span> Humidity (%)
+            </span>
+          </div>
+        </div>
+
+        <div class="mt-6 w-full h-80 sm:h-96">
+          <canvas id="sensorChart"></canvas>
+        </div>
+      </div>
+
+      <!-- SECTION 2: SAVED RECORDS TABLE (WITH PAGINATION) -->
+      <div class="glass-panel p-6 sm:p-8">
+        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-4 border-b border-zinc-200 dark:border-zinc-800 gap-4">
+          <div>
+            <div class="flex items-center gap-3">
+              <h3 class="text-lg font-bold flex items-center gap-2">
+                <i class="fa-solid fa-database text-rose-500"></i>
+                Saved Telemetry Records
+              </h3>
+              <span id="record-count-badge" class="px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                0 Records
+              </span>
+            </div>
+            <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+              Timezone: <span class="font-semibold text-rose-600 dark:text-rose-400">Asia/Kolkata (+5:30)</span>
+            </p>
+          </div>
+
+          <div class="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+            <!-- Records per page dropdown -->
+            <div class="flex items-center gap-2 text-xs font-semibold text-zinc-500">
+              <span>Show</span>
+              <select id="records-per-page" class="px-2 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 outline-none">
+                <option value="5">5</option>
+                <option value="10" selected>10</option>
+                <option value="20">20</option>
+              </select>
+            </div>
+
+            <!-- Clear All Records -->
+            <button id="btn-clear-all" class="px-3 py-1.5 rounded-lg text-xs font-semibold text-zinc-500 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-zinc-800 transition-all border border-zinc-200 dark:border-zinc-800">
+              <i class="fa-regular fa-trash-can mr-1"></i> Clear All
+            </button>
+          </div>
+        </div>
+
+        <!-- Table Container -->
+        <div class="mt-4 overflow-x-auto">
+          <table class="w-full text-left text-sm whitespace-nowrap">
+            <thead class="text-xs uppercase tracking-wider text-zinc-400 dark:text-zinc-500 border-b border-zinc-200 dark:border-zinc-800">
+              <tr>
+                <th scope="col" class="py-3 px-4 font-bold">#</th>
+                <th scope="col" class="py-3 px-4 font-bold">Temperature</th>
+                <th scope="col" class="py-3 px-4 font-bold">Humidity</th>
+                <th scope="col" class="py-3 px-4 font-bold">Time</th>
+                <th scope="col" class="py-3 px-4 font-bold">Date</th>
+                <th scope="col" class="py-3 px-4 font-bold text-center">Action</th>
+              </tr>
+            </thead>
+            <tbody id="records-table-body" class="divide-y divide-zinc-200/60 dark:divide-zinc-800/60">
+              <tr>
+                <td colspan="6" class="py-8 text-center text-zinc-400 text-sm">
+                  Loading records...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination Controls -->
+        <div class="mt-6 pt-4 border-t border-zinc-200 dark:border-zinc-800 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div id="pagination-info" class="text-xs text-zinc-500 dark:text-zinc-400 font-medium">
+            Showing 0 to 0 of 0 entries
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button id="btn-prev-page" disabled class="px-3.5 py-1.5 rounded-lg text-xs font-semibold border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-rose-50 dark:hover:bg-zinc-700 transition-all">
+              <i class="fa-solid fa-chevron-left mr-1"></i> Prev
+            </button>
+
+            <span id="pagination-current-page" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+              Page 1
+            </span>
+
+            <button id="btn-next-page" disabled class="px-3.5 py-1.5 rounded-lg text-xs font-semibold border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-rose-50 dark:hover:bg-zinc-700 transition-all">
+              Next <i class="fa-solid fa-chevron-right ml-1"></i>
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- ========================================================
+         TAB 2: SMART LCD 16x2 DISPLAY CONTROLLER
+         ======================================================== -->
+    <div id="tab-content-2" class="tab-page space-y-6 hidden">
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+        <!-- Input Form Section -->
+        <div class="glass-panel p-6 sm:p-8">
+          <div class="flex items-center gap-3 mb-6 pb-4 border-b border-zinc-200 dark:border-zinc-800">
+            <div class="w-12 h-12 rounded-2xl bg-gradient-to-tr from-rose-600 to-rose-400 flex items-center justify-center text-white shadow-lg shadow-rose-500/30">
+              <i class="fa-solid fa-font text-2xl"></i>
+            </div>
+            <div>
+              <h3 class="text-lg font-bold">16x2 LCD Text Controller</h3>
+              <p class="text-xs text-zinc-500 dark:text-zinc-400">Connected to ESP8266 via I2C (@0x27 on D1 & D2)</p>
+            </div>
+          </div>
+
+          <form id="form-lcd" class="space-y-5">
+            <!-- Field 1 -->
+            <div>
+              <div class="flex justify-between items-center mb-1.5">
+                <label for="lcd-input-1" class="text-xs font-bold uppercase tracking-wider text-zinc-600 dark:text-zinc-300">
+                  Field 1 (Row 1 Text)
+                </label>
+                <span id="counter-1" class="text-xs font-semibold text-rose-600 dark:text-rose-400">0 / 16</span>
+              </div>
+              <input type="text" id="lcd-input-1" maxlength="16" placeholder="Row 1 max 16 chars"
+                class="w-full px-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white/60 dark:bg-zinc-900/60 focus:ring-2 focus:ring-rose-500 focus:border-rose-500 outline-none text-sm font-mono transition-all">
+              <p class="text-[11px] text-zinc-400 mt-1">First line displayed on the 1602 LCD module.</p>
+            </div>
+
+            <!-- Field 2 -->
+            <div>
+              <div class="flex justify-between items-center mb-1.5">
+                <label for="lcd-input-2" class="text-xs font-bold uppercase tracking-wider text-zinc-600 dark:text-zinc-300">
+                  Field 2 (Row 2 Text)
+                </label>
+                <span id="counter-2" class="text-xs font-semibold text-rose-600 dark:text-rose-400">0 / 16</span>
+              </div>
+              <input type="text" id="lcd-input-2" maxlength="16" placeholder="Row 2 max 16 chars"
+                class="w-full px-4 py-3 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white/60 dark:bg-zinc-900/60 focus:ring-2 focus:ring-rose-500 focus:border-rose-500 outline-none text-sm font-mono transition-all">
+              <p class="text-[11px] text-zinc-400 mt-1">Second line displayed on the 1602 LCD module.</p>
+            </div>
+
+            <!-- Save Button -->
+            <button type="submit" id="btn-save-lcd" class="w-full py-3.5 px-6 rounded-xl btn-red-gradient font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-rose-600/30">
+              <i class="fa-solid fa-floppy-disk"></i>
+              <span>Save & Send to LCD</span>
+            </button>
+          </form>
+        </div>
+
+        <!-- Realistic LCD Screen Simulator -->
+        <div class="glass-panel p-6 sm:p-8 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-bold flex items-center gap-2">
+                <i class="fa-solid fa-desktop text-rose-500"></i>
+                Hardware LCD Preview
+              </h3>
+              <span class="text-xs px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 font-semibold">
+                1602 I2C Display
+              </span>
+            </div>
+            <p class="text-xs text-zinc-500 dark:text-zinc-400 mb-6">
+              Visual simulation of what will appear on the physical 16x2 LCD screen connected to pins D1 (SCL) and D2 (SDA).
+            </p>
+
+            <!-- LCD Physical Bezel Simulator -->
+            <div class="lcd-bezel max-w-md mx-auto">
+              <div class="lcd-screen">
+                <div class="lcd-line" id="lcd-preview-line-1">Simple IoT World</div>
+                <div class="lcd-line" id="lcd-preview-line-2">Welcome User   </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="mt-6 pt-4 border-t border-zinc-200 dark:border-zinc-800 text-xs text-zinc-500 space-y-1">
+            <p><i class="fa-solid fa-circle-info text-rose-500 mr-1.5"></i> <strong>ESP8266 Auto-Cycle:</strong> The microcontroller fetches these lines and alternates between temperature, humidity, smart display, and LED status every 2 seconds.</p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ========================================================
+         TAB 3: REMOTE LED CONTROLLER (INNOVATIVE BUTTON)
+         ======================================================== -->
+    <div id="tab-content-3" class="tab-page space-y-6 hidden">
+      <div class="max-w-2xl mx-auto glass-panel p-8 sm:p-12 text-center">
+        
+        <div class="inline-flex items-center justify-center w-16 h-16 rounded-3xl bg-rose-500/10 text-rose-600 dark:text-rose-400 mb-4 border border-rose-500/20">
+          <i class="fa-solid fa-bolt text-3xl"></i>
+        </div>
+
+        <h3 class="text-2xl font-bold tracking-tight">Actuator Control Center</h3>
+        <p class="text-sm text-zinc-500 dark:text-zinc-400 mt-1 max-w-md mx-auto">
+          Remotely trigger the physical LED connected to ESP8266 Pin <strong class="text-rose-600 dark:text-rose-400">D3 (GPIO 0)</strong>
+        </p>
+
+        <!-- Innovative 3D Cyber LED Switch Area -->
+        <div class="my-10 flex flex-col items-center justify-center gap-6">
+          
+          <!-- Physical Bulb Glow Indicator -->
+          <div class="flex items-center gap-3">
+            <span class="text-xs uppercase font-bold tracking-widest text-zinc-400">Physical LED:</span>
+            <div id="physical-led-bulb" class="physical-led-bulb"></div>
+          </div>
+
+          <!-- The Cyber Switch -->
+          <div class="cyber-switch-wrapper">
+            <button id="innovative-led-btn" class="cyber-switch" aria-label="Toggle LED State">
+              <i class="fa-solid fa-power-off cyber-switch-icon"></i>
+            </button>
+          </div>
+
+          <!-- Dynamic Status Text -->
+          <div>
+            <div id="led-state-label" class="text-lg font-black tracking-wide text-zinc-400 uppercase">
+              STATE: OFF
+            </div>
+            <p id="led-state-sub" class="text-xs text-zinc-500 mt-1 font-medium">
+              Click the button above to energize the pin
+            </p>
+          </div>
+
+        </div>
+
+        <!-- Details Card -->
+        <div class="grid grid-cols-2 gap-4 max-w-sm mx-auto p-4 rounded-2xl bg-zinc-100/70 dark:bg-zinc-800/40 border border-zinc-200 dark:border-zinc-800 text-xs">
+          <div>
+            <span class="text-zinc-400 block font-medium">Hardware Pin</span>
+            <span class="font-bold text-zinc-800 dark:text-zinc-200 text-sm">Pin D3 (GPIO 0)</span>
+          </div>
+          <div>
+            <span class="text-zinc-400 block font-medium">Signal Type</span>
+            <span class="font-bold text-zinc-800 dark:text-zinc-200 text-sm">Active Digital HIGH</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Footer with Animated Heart -->
+  <footer class="w-full border-t border-rose-500/10 py-5 text-center text-xs text-zinc-500 dark:text-zinc-400 bg-white/40 dark:bg-zinc-900/40 mt-auto">
+    <div class="max-w-7xl mx-auto px-4 flex items-center justify-center gap-1.5 flex-wrap">
+      <span>Developed with</span>
+      <span class="heart-beat">
+        <i class="fa-solid fa-heart text-rose-500"></i>
+      </span>
+      <span>by Rohit and Team. Department of ETC, SB Jain, Nagpur</span>
+    </div>
+  </footer>
+
+  <script src="js/auth.js"></script>
+  <script src="js/dashboard.js"></script>
+</body>
+</html>
